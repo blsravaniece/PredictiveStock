@@ -24,10 +24,11 @@ app.layout = dbc.Container(
         dbc.Row(dbc.Col(html.H1("Stock Price Dashboard", className="text-center my-4 text-primary"))),
         dbc.Row(dbc.Col(html.H6("Live Stock Ticker", className="mt-4"))),
         dbc.Row([
-        dbc.Col(dcc.Interval(id='interval-component', interval=5*1000, n_intervals=0))]),
+            dbc.Col(dcc.Interval(id='interval-component', interval=5*1000, n_intervals=0))
+        ]),
         dbc.Row([
-        dbc.Col(html.Div(id='live-ticker', style={'display': 'flex', 'overflowX': 'scroll'}))
-                ]),
+            dbc.Col(html.Div(id='live-ticker', style={'display': 'flex', 'overflowX': 'scroll'}))
+        ]),
         dbc.Row(dbc.Col(html.H6("Enter Stock Ticker to get information", className="mt-4"))),        
         dbc.Row(
             [
@@ -61,16 +62,15 @@ app.layout = dbc.Container(
         ),
         dbc.Row(dbc.Col(dcc.Graph(id='prediction-graph', config={'displayModeBar': False}), className="my-4")),
         dbc.Row([
-                  dbc.Col(html.Div(id='stock-prediction-table')),
-                ]),
-        
+            dbc.Col(html.Div(id='stock-prediction-table')),
+        ]),
         dbc.Row([
-        dbc.Col(html.H2("Previous Day's Equity Market"), className="mt-4")]),
+            dbc.Col(html.H2("Previous Day's Equity Market"), className="mt-4")
+        ]),
         dbc.Row([
-        dbc.Col(dash_table.DataTable(id='equity-market-table', columns=[], data=[], style_table={'overflowX': 'auto'}))
-                ]),
+            dbc.Col(dash_table.DataTable(id='equity-market-table', columns=[], data=[], style_table={'overflowX': 'auto'}))
+        ]),
     ],
-    
     fluid=True,
     style={'backgroundColor': '#2C3E50'}
 )
@@ -141,7 +141,11 @@ def update_company_info(n_clicks, ticker):
 )
 def predict_stock_prices(n_clicks, ticker, days):
     if not ticker or not days:
-        return {}
+        # Return default empty values
+        fig = go.Figure()
+        table = html.Div("No data available")
+        return fig, table
+    
     stock = yf.Ticker(ticker)
     df = stock.history(period='1y')
     
@@ -216,64 +220,37 @@ def predict_stock_prices(n_clicks, ticker, days):
     fig.add_trace(go.Scatter(x=prediction_df['Date'], y=prediction_df['Prediction'], mode='lines', name='Predicted Price'))
     table = dbc.Table.from_dataframe(prediction_df, striped=True, bordered=True, hover=True)
     return fig1, table
+
 @app.callback(
     Output('live-ticker', 'children'),
     Input('interval-component', 'n_intervals')
 )
-def update_ticker(n):
-    stock_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA','SPCE','OXY','NIO','BABA','SOUN','SBUX','QCOM','SNOW','SMCI','DIS','NFLX']
-    selected_symbols = random.sample(stock_symbols, 15)
-    
-    tickers = []
-    for symbol in selected_symbols:
-        try:
-            df = yf.download(symbol, period='1d', interval='1d')
-            if not df.empty:
-                price = df['Close'][-1]
-                tickers.append(html.Div(f'{symbol}: {price:.2f}', style={'margin': '0 10px'}))
-        except Exception as e:
-            print(f"Error fetching data for {symbol}: {e}")
-    
-    return tickers
+def update_live_ticker(n):
+    tickers = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']
+    ticker_data = []
+    for ticker in tickers:
+        stock = yf.Ticker(ticker)
+        data = stock.history(period='1d')
+        price = data['Close'].iloc[-1]
+        ticker_data.append(f"{ticker}: {price:.2f}")
+    ticker_text = " | ".join(ticker_data)
+    return html.Marquee(ticker_text, style={'color': 'white'})
 
 @app.callback(
-    [Output('equity-market-table', 'columns'),
-     Output('equity-market-table', 'data')],
+    Output('equity-market-table', 'data'),
+    Output('equity-market-table', 'columns'),
     Input('interval-component', 'n_intervals')
 )
-def update_equity_market_table(n):
-    stock_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'FB', 'NFLX', 'NVDA', 'ADBE', 'INTC']
-    market_data = []
-
-    for symbol in stock_symbols:
-        try:
-            df = yf.download(symbol, period='5d')
-            if not df.empty:
-                last_row = df.iloc[-2]  # Get the previous day's data
-                market_data.append({
-                    'Symbol': symbol,
-                    'Last Price': last_row['Close'],
-                    'Change': last_row['Close'] - last_row['Open'],
-                    'Volume': last_row['Volume']
-                })
-        except Exception as e:
-            market_data.append({
-                'Symbol': symbol,
-                'Last Price': 'Error',
-                'Change': 'Error',
-                'Volume': 'Error'
-            })
-
-    columns = [
-        {'name': 'Symbol', 'id': 'Symbol'},
-        {'name': 'Last Price', 'id': 'Last Price'},
-        {'name': 'Change', 'id': 'Change'},
-        {'name': 'Volume', 'id': 'Volume'}
-    ]
-
-    return columns, market_data
-
-
+def update_equity_market_table(n_intervals):
+    df = pd.DataFrame({
+        'Ticker': ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'],
+        'Previous Close': [random.uniform(100, 1500) for _ in range(5)],
+        'Current Close': [random.uniform(100, 1500) for _ in range(5)],
+        'Percentage Change': [random.uniform(-5, 5) for _ in range(5)]
+    })
+    columns = [{"name": i, "id": i} for i in df.columns]
+    data = df.to_dict(orient='records')
+    return data, columns
 
 if __name__ == '__main__':
     app.run_server(debug=True)
